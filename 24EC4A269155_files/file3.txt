@@ -1,2 +1,0 @@
-file3.txt contains this text.
-More text here in file3.txt.

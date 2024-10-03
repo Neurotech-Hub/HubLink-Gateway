@@ -41,7 +41,7 @@ async def get_data_from_device(device):
     async with BleakClient(device, timeout=30) as client:
         try:
             # Check if the client is already connected
-            if await client.is_connected():
+            if client.is_connected:
                 print(f"Already connected to {device.name}")
             else:
                 # Try to connect if not already connected
@@ -49,7 +49,7 @@ async def get_data_from_device(device):
                 print(f"Connected to {device.name}")
             
             # Discover services
-            services = await client.get_services()
+            services = client.services
             print(f"Discovered services: {services}")
 
             # Check if the required service exists
@@ -69,7 +69,7 @@ async def get_data_from_device(device):
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, handle_notification)
             
             # Wait for disconnection or manual stop (keep connection alive)
-            while await client.is_connected():
+            while client.is_connected:
                 await asyncio.sleep(1)  # Sleep to prevent busy waiting
             
             # Stop receiving notifications once disconnected or stopped
@@ -81,16 +81,25 @@ async def get_data_from_device(device):
 
         finally:
             # Ensure that the client is disconnected when done
-            if await client.is_connected():
+            if client.is_connected:
                 await client.disconnect()
                 print(f"Disconnected from {device.name}")
 
 async def scan_and_connect():
-    devices = await BleakScanner.discover()
-    arduino_devices = [device for device in devices if "ESP32_BLE_SD" in device.name]
+    max_retries = 3  # Set the number of retries
+    devices = []
+
+    for attempt in range(max_retries):
+        devices = await BleakScanner.discover(timeout=10)
+        arduino_devices = [device for device in devices if "ESP32_BLE_SD" in device.name]
+
+        if arduino_devices:
+            break  # Exit if devices are found
+        else:
+            print(f"Retrying scan {attempt + 1}/{max_retries}...")
 
     if not arduino_devices:
-        print("No Arduino devices found.")
+        print("No Arduino devices found after retrying.")
         return
 
     for device in arduino_devices:
