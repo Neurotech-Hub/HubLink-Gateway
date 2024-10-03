@@ -1,0 +1,2 @@
+Here is file2.txt data.
+Another line in file2.txt.
