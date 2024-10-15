@@ -1,8 +1,8 @@
 # NullLink-Pi
  
 ### Dependencies
-- sudo apt-get install curl
-- pip install bleak
+- `sudo apt-get install curl`
+- `pip install bleak`
 
 ### Setup
 
@@ -19,3 +19,8 @@
 
 **Running myenv in VS Code**
 1. Ctrl + Shift + P; Python: Select Interpreter (select myenv)
+
+**SQLite Browser**
+1. `sudo apt update`
+2. `sudo apt install sqlitebrowser`
+3. `sqlitebrowser`
