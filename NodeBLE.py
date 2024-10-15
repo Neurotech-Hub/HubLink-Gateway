@@ -1,6 +1,5 @@
 import os
 import asyncio
-import time
 from bleak import BleakScanner, BleakClient, BleakError
 from config import DATABASE_FILE, DATA_DIRECTORY  # Import DATA_DIRECTORY for file storage
 from S3Manager import needFile
@@ -22,8 +21,9 @@ async def get_data_from_device(device):
                 print(f"Already connected to {device.name}")
             else:
                 await client.connect()
-                print(f"Connected to {device.name} at {time.time()}")  # Log timestamp
+                print(f"Connected to {device.name}")
             
+            # Use the services property instead of get_services()
             services = client.services
             print(f"Discovered services: {services}")
 
@@ -31,26 +31,10 @@ async def get_data_from_device(device):
                 print(f"Required service {SERVICE_UUID} not found on {device.name}")
                 return
 
-            # Define callback for file transfer data
-            async def handle_file_transfer(sender, data):
-                file_data = data.decode('utf-8').strip()
-                print(f"Receiving file data: {file_data}")
-
-                # Check for EOF marker
-                if file_data == EOF_MARKER:
-                    print(f"EOF reached for {current_file}")
-                    return  # EOF reached, stop handling data for this file
-
-                # Write the data to the current file
-                with open(os.path.join(DATA_DIRECTORY, current_file), 'a') as file:
-                    file.write(file_data + '\n')
-
-            # Define callback for filename characteristic
+            # Define callback for file transfer characteristic
             async def handle_filename(sender, data):
-                global current_file
                 filename = data.decode('utf-8').strip()
-                current_file = filename
-                print(f"Received filename: {filename} at {time.time()}")  # Log timestamp
+                print(f"Received filename: {filename}")
 
                 # Check if the file is needed
                 file_needed = needFile(filename)
@@ -58,28 +42,61 @@ async def get_data_from_device(device):
                 # Respond with "SEND" or "SKIP"
                 response = b'SEND' if file_needed else b'SKIP'
                 await client.write_gatt_char(CHARACTERISTIC_UUID_NEEDFILE_RESPONSE, response)
-                print(f"Sent response: {response.decode('utf-8')} for {filename} at {time.time()}")  # Log timestamp
 
                 if file_needed:
                     print(f"File {filename} is needed. Ready to receive.")
-                else:
-                    print(f"File {filename} is not needed. Moving to next file.")
+                    
+                    # Set the path to save the file in DATA_DIRECTORY
+                    file_path = os.path.join(DATA_DIRECTORY, filename)
+                    
+                    # Open the file in write mode
+                    with open(file_path, 'w') as file:
 
-            # Start receiving notifications for both filename and file transfer
+                        # Define callback for file data
+                        async def handle_file_transfer(sender, data):
+                            file_data = data.decode('utf-8').strip()
+                            print(f"Receiving file data: {file_data}")
+                            
+                            # Check for EOF marker
+                            if file_data == EOF_MARKER:
+                                print(f"EOF reached for {filename}")
+                                await client.stop_notify(CHARACTERISTIC_UUID_FILETRANSFER)
+                                print(f"File transfer for {filename} completed and saved to {file_path}")
+                                return
+                            
+                            # Write the data to the file
+                            file.write(file_data + '\n')
+
+                        # Start monitoring the file transfer characteristic before notifying the ESP32
+                        try:
+                            await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, handle_file_transfer)
+                        except BleakError as e:
+                            print(f"Failed to start file transfer notifications: {e}")
+                            return
+
+                        print(f"Started receiving file data for {filename}")
+
+                        # Wait until the file transfer is complete (EOF marker detected)
+                        while client.is_connected:
+                            await asyncio.sleep(1)
+
+                else:
+                    print(f"File {filename} is not needed.")
+
+            # Start receiving notifications from ESP32 (filename characteristic)
             await client.start_notify(CHARACTERISTIC_UUID_FILENAME, handle_filename)
-            await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, handle_file_transfer)
 
             # Signal the ESP32 that the Pi is ready for file transfer
             await client.write_gatt_char(CHARACTERISTIC_UUID_READY, b'READY')
-            print("Pi signaled readiness for file transfer at", time.time())  # Log timestamp
+            print("Pi signaled readiness for file transfer.")
 
             # Wait for connection to remain alive
             while client.is_connected:
-                await asyncio.sleep(0.1)  # Check the connection every 100ms
+                await asyncio.sleep(1)
 
-            # Stop notifications once the connection is lost
-            await client.stop_notify(CHARACTERISTIC_UUID_FILENAME)
-            await client.stop_notify(CHARACTERISTIC_UUID_FILETRANSFER)
+            # Stop receiving notifications from filename characteristic (only if still connected)
+            if client.is_connected:
+                await client.stop_notify(CHARACTERISTIC_UUID_FILENAME)
 
     except BleakError as e:
         print(f"Failed to interact with {device.name}: {e}")
@@ -91,7 +108,7 @@ async def get_data_from_device(device):
 
 # BLE scan and connect process
 async def scan_and_connect():
-    devices = await BleakScanner.discover(timeout=3)
+    devices = await BleakScanner.discover(timeout=10)
     arduino_devices = [device for device in devices if "ESP32_BLE_SD" in device.name]
 
     if not arduino_devices:
