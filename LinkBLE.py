@@ -14,7 +14,9 @@ class BLEFileTransferClient:
         self.mac_address = mac_address.replace(':', '')
         self.eof_received = False
         self.file_transfer_event = asyncio.Event()  # Event to track file transfer activity
+        self.filenames_received_event = asyncio.Event()  # Event to track filename list completion
         self.transfer_timeout_task = None  # Task to manage dynamic timeout during file transfer
+        self.filename_timeout_task = None  # Task to manage dynamic timeout during filename list
         self.current_file = None
         self.current_file_path = None
 
@@ -50,6 +52,9 @@ class BLEFileTransferClient:
             print("Received all filenames.")
             print(self.file_list)
             self.eof_received = True
+            if self.filename_timeout_task:
+                self.filename_timeout_task.cancel()  # Cancel the timeout task if the EOF is received
+            self.filenames_received_event.set()  # Signal that all filenames have been received
             return
         elif '|' in file_info:
             try:
@@ -64,6 +69,11 @@ class BLEFileTransferClient:
         
         print(f"Received filename: {filename}, size: {filesize}")
         self.file_list.append((filename, int(filesize)))
+
+        # Reset the timeout timer each time a filename is received
+        if self.filename_timeout_task:
+            self.filename_timeout_task.cancel()
+        self.filename_timeout_task = asyncio.create_task(self.start_dynamic_filename_timeout())
 
     async def start_dynamic_timeout(self):
         try:
@@ -80,10 +90,20 @@ class BLEFileTransferClient:
             # Task was canceled because new data was received
             pass
 
+    async def start_dynamic_filename_timeout(self):
+        try:
+            await asyncio.sleep(5)  # Timeout period for no filenames received
+            print("Timeout during filename reception.")
+            self.filenames_received_event.set()  # Set the event to proceed even if not all filenames are received
+        except asyncio.CancelledError:
+            # Task was canceled because new data was received
+            pass
+
     async def notification_manager(self, client):
         # Reset file list and EOF flag for a new connection
         self.file_list = []
         self.eof_received = False
+        self.filenames_received_event.clear()
 
         try:
             # Start notifications for both FILENAME and FILETRANSFER characteristics
@@ -91,8 +111,11 @@ class BLEFileTransferClient:
             await client.start_notify(CHARACTERISTIC_UUID_FILENAME, self.handle_filename)
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, self.handle_file_transfer)
 
-            # Wait for all filenames to be received or timeout
-            await asyncio.sleep(5)  # !!should pend on FILENAMES, currently fixed delay
+            # Start the dynamic timeout for filename reception
+            self.filename_timeout_task = asyncio.create_task(self.start_dynamic_filename_timeout())
+
+            # Wait for all filenames to be received
+            await self.filenames_received_event.wait()
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
