@@ -34,7 +34,7 @@ def create_or_update_s3_files_table():
             raise
     
     for file in s3_files:
-        print(f"Operating on S3 file: {file['Key']} with size: {file['Size']}")
+        print(f"Create or update: {file['Key']} with size: {file['Size']}")
         filename = file['Key']
         created_at = datetime.fromtimestamp(file['LastModified'].timestamp()).isoformat()
         updated_at = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-4]
