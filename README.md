@@ -24,3 +24,7 @@
 1. `sudo apt update`
 2. `sudo apt install sqlitebrowser`
 3. `sqlitebrowser`
+
+Todo:
+- [ ] Wakeup schedule
+- [ ] Prune local files (based on remaining storage and/or age)

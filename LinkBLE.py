@@ -39,7 +39,7 @@ class BLEFileTransferClient:
 
         # Write data to the current file
         self.current_file.write(data_str + '\n')
-        print(f"Receiving file data: {data_str}")
+        #print(f"Receiving file data: {data_str}")
 
         # Reset the timeout timer each time data is received
         if self.transfer_timeout_task:
@@ -50,7 +50,6 @@ class BLEFileTransferClient:
         file_info = data.decode('utf-8').strip()
         if file_info == "EOF":
             print("Received all filenames.")
-            print(self.file_list)
             self.eof_received = True
             if self.filename_timeout_task:
                 self.filename_timeout_task.cancel()  # Cancel the timeout task if the EOF is received
@@ -119,8 +118,8 @@ class BLEFileTransferClient:
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
-                mac_prefixed_filename = f"{self.mac_address}_{filename}"
-                if needFile(mac_prefixed_filename, filesize):
+                mac_prefixed_filename = f"{self.mac_address}_{filesize}__{filename}"
+                if needFile(mac_prefixed_filename):
                     print(f"Requesting file: {filename}")
                     self.current_file_path = os.path.join(DATA_DIRECTORY, mac_prefixed_filename)
                     try:
