@@ -28,3 +28,8 @@
 Todo:
 - [ ] Wakeup schedule
 - [ ] Prune local files (based on remaining storage and/or age)
+- [ ] How do we manage duplicate files?
+1. Only take largest with unique file name
+2. x Take most recent no matter what size
+
+1. Immediately after the files are dumped, find most recent ON FILE SYSTEM, use as master, purge all others (1) locally (so they never upload), on S3 + local DB
