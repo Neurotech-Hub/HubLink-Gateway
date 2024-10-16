@@ -1,4 +1,6 @@
 # config.py
+# from config import DATA_DIRECTORY
+# from S3Manager import needFile
 
 # Base path for removable drive
 BASE_PATH = '/media/gaidica/NULL/NullLink'
