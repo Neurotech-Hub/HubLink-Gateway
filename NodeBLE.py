@@ -1,6 +1,7 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile
+from config import DATA_DIRECTORY
 
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
@@ -14,21 +15,40 @@ class BLEFileTransferClient:
     async def handle_file_transfer(self, sender, data):
         data_str = data.decode('utf-8').strip()
         if data_str == "EOF":
+            if hasattr(self, 'current_file') and self.current_file is not None:
+                self.current_file.close()
+                self.current_file = None
             print("File transfer complete.")
             return
+
+        if not hasattr(self, 'current_file') or self.current_file is None:
+            print("Error: No file currently open for writing.")
+            return
+
+        # Write data to the current file
+        self.current_file.write(data_str + '')
         print(f"Receiving file data: {data_str}")
 
     async def handle_filename(self, sender, data):
-        filename = data.decode('utf-8').strip()
-        
-        if filename == "EOF":
+        file_info = data.decode('utf-8').strip()
+        if file_info == "EOF":
             print("Received all filenames.")
             print(self.file_list)
             self.eof_received = True
             return
+        elif '|' in file_info:
+            try:
+                filename, filesize = file_info.split('|')
+                filesize = int(filesize)
+            except ValueError:
+                print(f"Malformed file_info received: {file_info}")
+                return
+        else:
+            print(f"Malformed file_info received: {file_info}")
+            return
         
-        print(f"Received filename: {filename}")
-        self.file_list.append(filename)
+        print(f"Received filename: {filename}, size: {filesize}")
+        self.file_list.append((filename, int(filesize)))
 
     async def wait_for_event(self, condition_fn, timeout):
         try:
@@ -55,16 +75,13 @@ class BLEFileTransferClient:
             await self.wait_for_event(lambda: self.eof_received, timeout=5)
 
             # After receiving filenames, request only those that are needed
-            for filename in self.file_list:
-                if needFile(filename):
+            for filename, filesize in self.file_list:
+                if needFile(filename, filesize):
                     print(f"Requesting file: {filename}")
                     await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))
 
                     # Wait for the file transfer to complete or timeout
-                    await self.wait_for_event(lambda: False, timeout=10)  # Adjust the condition for actual completion logic
-
-                # Wait for the file transfer to complete or timeout
-                await self.wait_for_event(lambda: False, timeout=10)  # Adjust the condition for actual completion logic
+                    await self.wait_for_event(lambda: False, timeout=3)  # Adjust the condition for actual completion logic
 
         except BleakError as e:
             print(f"Error during BLE interaction: {e}")
@@ -77,7 +94,7 @@ class BLEFileTransferClient:
 async def main():
     ble_client = BLEFileTransferClient()
     try:
-        devices = await BleakScanner.discover()
+        devices = await BleakScanner.discover(timeout=3)
         for device in devices:
             if "ESP32_BLE_SD" in device.name:
                 print(f"Found ESP32: {device.name}, {device.address}")

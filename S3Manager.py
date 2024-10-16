@@ -100,14 +100,22 @@ def upload_missing_files(data_directory):
             s3.upload_file(file_path, BUCKET_NAME, filename)
             print(f'Uploaded: {filename}')
 
-def needFile(filename):
-    """Returns True if the file is not present in the s3_files database."""
+def needFile(filename, filesize):
+    """Returns True if the file is not present in the s3_files database or if the filesize is different."""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM s3_files WHERE s3_filename = ?', (filename,))
-    result = cursor.fetchone()[0]
+    cursor.execute('SELECT file_size FROM s3_files WHERE s3_filename = ?', (filename,))
+    result = cursor.fetchone()
+    
+    # If the file doesn't exist in the database, return True
+    if result is None:
+        conn.close()
+        return True
+    
+    # If the file exists but the filesize is different, return True
+    stored_filesize = result[0]
     conn.close()
-    return result == 0
+    return stored_filesize != filesize
 
 def sync_s3_and_local_files(data_directory):
     """Master function to sync files between S3 and local directory."""
