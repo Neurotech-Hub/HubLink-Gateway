@@ -9,8 +9,9 @@ CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
 CHARACTERISTIC_UUID_FILETRANSFER = "87654321-4321-4321-4321-abcdefabcdf2"
 
 class BLEFileTransferClient:
-    def __init__(self):
+    def __init__(self, mac_address):
         self.file_list = []
+        self.mac_address = mac_address.replace(':', '')
         self.eof_received = False
         self.file_transfer_event = asyncio.Event()  # Event to track file transfer activity
         self.transfer_timeout_task = None  # Task to manage dynamic timeout during file transfer
@@ -91,22 +92,22 @@ class BLEFileTransferClient:
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, self.handle_file_transfer)
 
             # Wait for all filenames to be received or timeout
-            await asyncio.sleep(5)  # Fixed wait time for filenames to arrive
+            await asyncio.sleep(5)  # !!should pend on FILENAMES, currently fixed delay
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
-                if needFile(filename, filesize):
+                mac_prefixed_filename = f"{self.mac_address}_{filename}"
+                if needFile(mac_prefixed_filename, filesize):
                     print(f"Requesting file: {filename}")
-                    self.current_file_path = os.path.join(DATA_DIRECTORY, filename)
+                    self.current_file_path = os.path.join(DATA_DIRECTORY, mac_prefixed_filename)
                     try:
                         self.current_file = open(self.current_file_path, 'w')
                     except IOError as e:
                         print(f"Failed to open file {filename} for writing: {e}")
                         continue
-                    await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))
+                    await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
 
                     # Start the dynamic timeout for file transfer
-                    print(f"Starting dynamic timeout for file: {filename}")
                     self.transfer_timeout_task = asyncio.create_task(self.start_dynamic_timeout())
 
                     # Wait for the file transfer to complete
@@ -129,12 +130,18 @@ class BLEFileTransferClient:
             print("Notifications stopped and cleanup complete.")
 
 async def searchForLinks():
-    ble_client = BLEFileTransferClient()
+    mac_address = None
+    ble_client = None
     try:
         devices = await BleakScanner.discover(timeout=3)
+        if not devices:
+            print("No devices found.")
+            return
         for device in devices:
             if "ESP32_BLE_SD" in device.name:
-                print(f"Found ESP32: {device.name}, {device.address}")
+                mac_address = device.address
+                print(f"Found ESP32: {device.name}, {mac_address}")
+                ble_client = BLEFileTransferClient(mac_address)
                 async with BleakClient(device.address) as client:
                     print(f"Connected to {device.name}")
                     await ble_client.notification_manager(client)

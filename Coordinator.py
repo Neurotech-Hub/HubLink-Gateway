@@ -1,4 +1,4 @@
-from NodeBLE import searchForLinks
+from LinkBLE import searchForLinks
 from S3Manager import sync_s3_and_local_files, needFile
 from config import DATA_DIRECTORY  # Import the variables from config
 import asyncio
