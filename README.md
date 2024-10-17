@@ -118,7 +118,5 @@ These configuration options make the system flexible, allowing easy adjustments 
 3. `sqlitebrowser`
 
 Todo:
-- [ ] Wakeup schedule
-- [ ] Prune local files (based on remaining storage and/or age)
-- [ ] Optimize BLE timing delays on ESP
+- [ ] Wakeup/cronjob schedule
 - [ ] Smarter timeouts on ESP and Pi (something like a watchdog?)
