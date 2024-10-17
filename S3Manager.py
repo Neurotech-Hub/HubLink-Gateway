@@ -3,7 +3,6 @@ import boto3
 import sqlite3
 from datetime import datetime
 from config import DATABASE_FILE, BUCKET_NAME, DT_RULE  # Import the variables from config
-import re
 
 # Set up your S3 client (assumes credentials are configured)
 s3 = boto3.client('s3')
@@ -162,3 +161,6 @@ def sync_s3_and_local_files(data_directory):
 
     # Step 2: Upload missing files from local directory to S3 and update the database accordingly
     upload_files(data_directory)
+
+if __name__ == "__main__":
+    update_local_database()

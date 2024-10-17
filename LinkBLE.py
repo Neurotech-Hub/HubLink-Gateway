@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
-from S3Manager import needFile
+from S3Manager import needFile, upload_files
 from config import DATA_DIRECTORY
 import os
 from datetime import datetime
@@ -16,22 +16,26 @@ class BLEFileTransferClient:
         self.base_directory = base_directory
         self.eof_received = False
         self.file_transfer_event = asyncio.Event()  # Event to track file transfer activity
-        self.filenames_received_event = asyncio.Event()  # Event to track filename list completion
-        self.transfer_timeout_task = None  # Task to manage dynamic timeout during file transfer
-        self.filename_timeout_task = None  # Task to manage dynamic timeout during filename list
+        self.all_filenames_received = asyncio.Event()  # Event to track completion of filename reception
         self.current_file = None
         self.current_file_path = None
+        self.current_filename_buffer = ""  # Buffer to piece together filename chunks
+        self.file_transfer_timeout_task = None  # Task to manage dynamic timeout during file transfer
 
     async def handle_file_transfer(self, sender, data):
+        print(f"Received data chunk of size {len(data)} at {datetime.now()}", flush=True)
         if data == b"EOF":
             self.eof_received = True
             if self.current_file is not None:
                 self.current_file.close()
                 self.current_file = None
                 print("File transfer complete.")
-            if self.transfer_timeout_task:
-                self.transfer_timeout_task.cancel()  # Cancel the timeout task if the file transfer completes
             self.file_transfer_event.set()  # Signal that the file transfer is complete
+
+            # Cancel the timeout task if the transfer is complete
+            if self.file_transfer_timeout_task:
+                self.file_transfer_timeout_task.cancel()
+
             return
 
         if self.current_file is None:
@@ -39,83 +43,75 @@ class BLEFileTransferClient:
             return
 
         # Write data to the current file
-        self.current_file.write(data)
-        #print(f"Receiving file data: {data}")
+        # Asynchronously write data to the file
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self.current_file.write, data)
 
         # Reset the timeout timer each time data is received
-        if self.transfer_timeout_task:
-            self.transfer_timeout_task.cancel()
-        self.transfer_timeout_task = asyncio.create_task(self.start_dynamic_timeout())
+        if self.file_transfer_timeout_task:
+            self.file_transfer_timeout_task.cancel()
+        self.file_transfer_timeout_task = asyncio.create_task(self.start_dynamic_filetransfer_timeout())
+
+    async def start_dynamic_filetransfer_timeout(self):
+        try:
+            await asyncio.sleep(10)  # Timeout period for no data received
+            if not self.eof_received:
+                print("Timeout during file transfer. Deleting partial file.")
+                if self.current_file is not None:
+                    self.current_file.close()
+                    self.current_file = None
+                if self.current_file_path and os.path.exists(self.current_file_path):
+                    os.remove(self.current_file_path)
+                    self.current_file_path = None
+                self.file_transfer_event.set()  # Signal that file transfer should be considered complete
+        except asyncio.CancelledError:
+            # Task was canceled because new data was received
+            pass
 
     async def handle_filename(self, sender, data):
         file_info = data.decode('utf-8').strip()
         if file_info == "EOF":
             print("Received all filenames.")
-            self.eof_received = True
-            if self.filename_timeout_task:
-                self.filename_timeout_task.cancel()  # Cancel the timeout task if the EOF is received
-            self.filenames_received_event.set()  # Signal that all filenames have been received
+            self.all_filenames_received.set()  # Signal that all filenames have been received
             return
-        elif '|' in file_info:
-            try:
-                filename, filesize = file_info.split('|')
-                filesize = int(filesize)
-            except ValueError:
-                print(f"Malformed file_info received: {file_info}")
-                return
+        elif file_info == "EON":
+            # End of current filename notification, process the complete filename
+            if '|' in self.current_filename_buffer:
+                try:
+                    filename, filesize = self.current_filename_buffer.split('|')
+                    filesize = int(filesize)
+                except ValueError:
+                    print(f"Malformed file_info received: {self.current_filename_buffer}")
+                    self.current_filename_buffer = ""
+                    return
+                
+                print(f"Received filename: {filename}, size: {filesize}")
+                self.file_list.append((filename, filesize))
+            else:
+                print(f"Malformed file_info received: {self.current_filename_buffer}")
+            
+            # Clear the buffer after processing
+            self.current_filename_buffer = ""
         else:
-            print(f"Malformed file_info received: {file_info}")
-            return
-        
-        print(f"Received filename: {filename}, size: {filesize}")
-        self.file_list.append((filename, int(filesize)))
-
-        # Reset the timeout timer each time a filename is received
-        if self.filename_timeout_task:
-            self.filename_timeout_task.cancel()
-        self.filename_timeout_task = asyncio.create_task(self.start_dynamic_filename_timeout())
-
-    async def start_dynamic_timeout(self):
-        try:
-            await asyncio.sleep(3)  # Timeout period for no data received
-            print("Timeout during file transfer. Deleting partial file.")
-            if self.current_file is not None:
-                self.current_file.close()
-                self.current_file = None
-            if self.current_file_path and os.path.exists(self.current_file_path):
-                os.remove(self.current_file_path)
-                self.current_file_path = None
-            self.eof_received = True  # Set EOF flag to move on to the next file
-        except asyncio.CancelledError:
-            # Task was canceled because new data was received
-            pass
-
-    async def start_dynamic_filename_timeout(self):
-        try:
-            await asyncio.sleep(5)  # Timeout period for no filenames received
-            print("Timeout during filename reception.")
-            self.filenames_received_event.set()  # Set the event to proceed even if not all filenames are received
-        except asyncio.CancelledError:
-            # Task was canceled because new data was received
-            pass
+            # Append data to filename buffer until 'EON' is received
+            self.current_filename_buffer += file_info
 
     async def notification_manager(self, client):
         # Reset file list and EOF flag for a new connection
         self.file_list = []
         self.eof_received = False
-        self.filenames_received_event.clear()
+        self.current_filename_buffer = ""
+        self.all_filenames_received.clear()
 
         try:
             # Start notifications for both FILENAME and FILETRANSFER characteristics
             print("Requesting file list from ESP32...")
-            await client.start_notify(CHARACTERISTIC_UUID_FILENAME, self.handle_filename)
+            
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, self.handle_file_transfer)
-
-            # Start the dynamic timeout for filename reception
-            self.filename_timeout_task = asyncio.create_task(self.start_dynamic_filename_timeout())
+            await client.start_notify(CHARACTERISTIC_UUID_FILENAME, self.handle_filename)
 
             # Wait for all filenames to be received
-            await self.filenames_received_event.wait()
+            await self.all_filenames_received.wait()  # Wait until all filenames have been received
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
@@ -129,28 +125,40 @@ class BLEFileTransferClient:
                     except IOError as e:
                         print(f"Failed to open file {filename} for writing: {e}")
                         continue
-                    await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
+
+                    try:
+                        await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
+                    except BleakError as e:
+                        print(f"Error during GATT write operation: {e}")
+                        continue
 
                     # Start the dynamic timeout for file transfer
-                    self.transfer_timeout_task = asyncio.create_task(self.start_dynamic_timeout())
+                    self.file_transfer_timeout_task = asyncio.create_task(self.start_dynamic_filetransfer_timeout())
 
                     # Wait for the file transfer to complete
                     await self.file_transfer_event.wait()
                     self.file_transfer_event.clear()  # Clear event for next transfer
-                    
+
                     # Cancel any ongoing timeout task as EOF has been received
-                    if self.transfer_timeout_task:
-                        self.transfer_timeout_task.cancel()
+                    if self.file_transfer_timeout_task:
+                        self.file_transfer_timeout_task.cancel()
 
                     # Reset EOF flag for the next file
                     self.eof_received = False
 
         except BleakError as e:
             print(f"Error during BLE interaction: {e}")
+        except asyncio.TimeoutError:
+            print("File transfer timed out.")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
         finally:
             # Stop notifications and clean up if necessary
-            await client.stop_notify(CHARACTERISTIC_UUID_FILENAME)
-            await client.stop_notify(CHARACTERISTIC_UUID_FILETRANSFER)
+            try:
+                await client.stop_notify(CHARACTERISTIC_UUID_FILENAME)
+                await client.stop_notify(CHARACTERISTIC_UUID_FILETRANSFER)
+            except BleakError as e:
+                print(f"Error stopping notifications: {e}")
             print("Notifications stopped and cleanup complete.")
 
 async def searchForLinks():
@@ -158,6 +166,7 @@ async def searchForLinks():
     ble_client = None
     base_directory = os.path.join(DATA_DIRECTORY, datetime.now().strftime('%Y%m%d%H%M%S'))
     os.makedirs(base_directory, exist_ok=True)
+    devices_found = False
     try:
         devices = await BleakScanner.discover(timeout=3)
         if not devices:
@@ -165,14 +174,30 @@ async def searchForLinks():
             return
         for device in devices:
             if "ESP32_BLE_SD" in device.name:
+                devices_found = True
                 mac_address = device.address
                 print(f"Found ESP32: {device.name}, {mac_address}")
                 ble_client = BLEFileTransferClient(mac_address, base_directory)
-                async with BleakClient(device.address) as client:
-                    print(f"Connected to {device.name}")
-                    await ble_client.notification_manager(client)
+                try:
+                    async with BleakClient(device.address) as client:
+                        print(f"Connected to {device.name}")
+                        await ble_client.notification_manager(client)
+                except BleakError as e:
+                    print(f"Error during connection or BLE interaction: {e}")
+                except Exception as e:
+                    print(f"Unexpected error during connection: {e}")
     except BleakError as e:
         print(f"Failed to connect or interact with device: {e}")
+    except Exception as e:
+        print(f"Unexpected error during device discovery: {e}")
+    finally:
+        # Cleanup base directory if no files were transferred and no devices connected
+        if os.path.exists(base_directory) and not devices_found:
+            if not os.listdir(base_directory):
+                os.rmdir(base_directory)
+        # Call upload_files if devices connected and files were transferred
+        #if devices_found and os.path.exists(base_directory):
+            #upload_files(base_directory)
 
 if __name__ == "__main__":
     asyncio.run(searchForLinks())
