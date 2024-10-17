@@ -2,13 +2,11 @@ import os
 import boto3
 import sqlite3
 from datetime import datetime
-from config import DATABASE_FILE, BUCKET_NAME, DT_RULE  # Import the variables from config
+from config import DATABASE_FILE, BUCKET_NAME, DT_RULE, DATETIME_FORMAT
+from DBManager import ensure_database_exists
 
 # Set up your S3 client (assumes credentials are configured)
 s3 = boto3.client('s3')
-
-# Standardized datetime format
-DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f'[:-4]
 
 # Helper function to format datetime based on DT_RULE
 def format_datetime():
@@ -29,23 +27,6 @@ def format_datetime():
         return ''
     else:
         raise ValueError("Invalid DT_RULE value")
-
-def ensure_database_exists():
-    """Ensures that the s3_files table exists in the database."""
-    if not os.path.exists(DATABASE_FILE):
-        print(f"Database file {DATABASE_FILE} does not exist. Creating it now.")
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    # Create the s3_files table if it doesn't exist
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS s3_files (
-        filename TEXT PRIMARY KEY,
-        size INTEGER,
-        updated_at TEXT
-      )
-    ''')
-    conn.commit()
-    conn.close()
 
 def build_s3_filename(mac, filename):
     """Builds the S3 filename string based on DT_RULE."""

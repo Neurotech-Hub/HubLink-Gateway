@@ -6,16 +6,18 @@
 
 ### Setup
 
+**Virtual Environment**
+1. Init: cd to project folder, `python3 -m venv myenv` 
+2. Start session: `source myenv/bin/activate`
+3. (Opt) run your script, eg, `python3 S3.py`
+4. `deactivate`
+
 **AWS CLI**
 1. `sudo apt install awscli`
 2. `aws configure`
 
 **Boto3 (AWS)**
-1. Init: cd to project folder, `python3 -m venv myenv` 
-2. Start session: `source myenv/bin/activate`
-3. Init: `pip install boto3` (this will persist in myenv)
-4. (Opt) run your script, eg, `python3 S3.py`
-5. `deactivate`
+1. Init: `pip install boto3` (this will persist in myenv)
 
 **Running myenv in VS Code**
 1. Ctrl + Shift + P; Python: Select Interpreter (select myenv)
@@ -28,5 +30,4 @@
 Todo:
 - [ ] Wakeup schedule
 - [ ] Prune local files (based on remaining storage and/or age)
-- [ ] How do we manage duplicate files?
-- [ ] Use simple json to round robin BLE devices
+- [ ] Optimize BLE timing delays on ESP

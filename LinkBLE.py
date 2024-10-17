@@ -1,9 +1,10 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile, upload_files
-from config import DATA_DIRECTORY
+from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD
 import os
 from datetime import datetime
+from DBManager import sortRecentMAC, updateMAC
 
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
@@ -115,6 +116,9 @@ class BLEFileTransferClient:
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
+                if filesize > MAX_FILE_SIZE:
+                    print(f"{filename} exceeds MAX_FILE_SIZE");
+                    continue
                 if needFile(self.mac_address, filename, filesize):
                     print(f"Requesting file: {filename}")
                     mac_directory = os.path.join(self.base_directory, self.mac_address)
@@ -172,20 +176,25 @@ async def searchForLinks():
         if not devices:
             print("No devices found.")
             return
-        for device in devices:
-            if "ESP32_BLE_SD" in device.name:
-                devices_found = True
-                mac_address = device.address
-                print(f"Found ESP32: {device.name}, {mac_address}")
-                ble_client = BLEFileTransferClient(mac_address, base_directory)
-                try:
-                    async with BleakClient(device.address) as client:
-                        print(f"Connected to {device.name}")
-                        await ble_client.notification_manager(client)
-                except BleakError as e:
-                    print(f"Error during connection or BLE interaction: {e}")
-                except Exception as e:
-                    print(f"Unexpected error during connection: {e}")
+        
+        # Extract MAC addresses of ESP32 devices
+        mac_addresses = [device.address for device in devices if "ESP32_BLE_SD" in device.name]
+        # Sort MAC addresses by least recently updated
+        sorted_mac_addresses = sortRecentMAC(mac_addresses)
+        
+        for mac_address in sorted_mac_addresses:
+            print(f"Attempting to connect to ESP32: {mac_address}")
+            ble_client = BLEFileTransferClient(mac_address, base_directory)
+            try:
+                async with BleakClient(mac_address) as client:
+                    print(f"Connected to {mac_address}")
+                    await ble_client.notification_manager(client)
+                    updateMAC(mac_address)  # Update MAC address after successful connection
+                    devices_found = True
+            except BleakError as e:
+                print(f"Error during connection or BLE interaction: {e}")
+            except Exception as e:
+                print(f"Unexpected error during connection: {e}")
     except BleakError as e:
         print(f"Failed to connect or interact with device: {e}")
     except Exception as e:
@@ -197,7 +206,10 @@ async def searchForLinks():
                 os.rmdir(base_directory)
         # Call upload_files if devices connected and files were transferred
         if devices_found and os.path.exists(base_directory):
-            upload_files(base_directory)
+            if USE_CLOUD:
+                upload_files(base_directory)
+            else:
+                print("Cloud storage is turned off.")
 
 if __name__ == "__main__":
     asyncio.run(searchForLinks())
