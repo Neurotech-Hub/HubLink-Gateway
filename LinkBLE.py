@@ -23,7 +23,6 @@ class BLEFileTransferClient:
         self.file_transfer_timeout_task = None  # Task to manage dynamic timeout during file transfer
 
     async def handle_file_transfer(self, sender, data):
-        print(f"Received data chunk of size {len(data)} at {datetime.now()}", flush=True)
         if data == b"EOF":
             self.eof_received = True
             if self.current_file is not None:
@@ -43,9 +42,10 @@ class BLEFileTransferClient:
             return
 
         # Write data to the current file
-        # Asynchronously write data to the file
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self.current_file.write, data)
+        try:
+            self.current_file.write(data)
+        except Exception as e:
+            print(f"Failed to write data to file: {e}")
 
         # Reset the timeout timer each time data is received
         if self.file_transfer_timeout_task:
@@ -168,7 +168,7 @@ async def searchForLinks():
     os.makedirs(base_directory, exist_ok=True)
     devices_found = False
     try:
-        devices = await BleakScanner.discover(timeout=3)
+        devices = await BleakScanner.discover(timeout=5)
         if not devices:
             print("No devices found.")
             return
@@ -196,8 +196,8 @@ async def searchForLinks():
             if not os.listdir(base_directory):
                 os.rmdir(base_directory)
         # Call upload_files if devices connected and files were transferred
-        #if devices_found and os.path.exists(base_directory):
-            #upload_files(base_directory)
+        if devices_found and os.path.exists(base_directory):
+            upload_files(base_directory)
 
 if __name__ == "__main__":
     asyncio.run(searchForLinks())

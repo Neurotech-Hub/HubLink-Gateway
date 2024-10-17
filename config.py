@@ -17,4 +17,4 @@ DATABASE_FILE = f'{BASE_PATH}/s3_files.db'
 BUCKET_NAME = 'neurotechhub-000'
 
 # Folder format rule
-DT_RULE = 'hours'
+DT_RULE = 'days'

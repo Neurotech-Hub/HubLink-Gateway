@@ -153,14 +153,5 @@ def upload_files(data_directory):
     conn.commit()
     conn.close()
 
-def sync_s3_and_local_files(data_directory):
-    """Master function to sync files between S3 and local directory."""
-
-    # Step 1: Update the local database with the current S3 file list
-    update_local_database()
-
-    # Step 2: Upload missing files from local directory to S3 and update the database accordingly
-    upload_files(data_directory)
-
 if __name__ == "__main__":
     update_local_database()
