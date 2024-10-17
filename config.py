@@ -1,4 +1,6 @@
 # config.py
+
+# examples:
 # from config import DATA_DIRECTORY
 # from S3Manager import needFile
 
@@ -13,3 +15,6 @@ DATABASE_FILE = f'{BASE_PATH}/s3_files.db'
 
 # S3 bucket name
 BUCKET_NAME = 'neurotechhub-000'
+
+# Folder format rule
+DT_RULE = 'hours'

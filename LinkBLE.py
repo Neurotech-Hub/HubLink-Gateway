@@ -3,15 +3,17 @@ from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile
 from config import DATA_DIRECTORY
 import os
+from datetime import datetime
 
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
 CHARACTERISTIC_UUID_FILETRANSFER = "87654321-4321-4321-4321-abcdefabcdf2"
 
 class BLEFileTransferClient:
-    def __init__(self, mac_address):
+    def __init__(self, mac_address, base_directory):
         self.file_list = []
         self.mac_address = mac_address.replace(':', '')
+        self.base_directory = base_directory
         self.eof_received = False
         self.file_transfer_event = asyncio.Event()  # Event to track file transfer activity
         self.filenames_received_event = asyncio.Event()  # Event to track filename list completion
@@ -21,8 +23,7 @@ class BLEFileTransferClient:
         self.current_file_path = None
 
     async def handle_file_transfer(self, sender, data):
-        data_str = data.decode('utf-8').strip()
-        if data_str == "EOF":
+        if data == b"EOF":
             self.eof_received = True
             if self.current_file is not None:
                 self.current_file.close()
@@ -38,8 +39,8 @@ class BLEFileTransferClient:
             return
 
         # Write data to the current file
-        self.current_file.write(data_str + '\n')
-        #print(f"Receiving file data: {data_str}")
+        self.current_file.write(data)
+        #print(f"Receiving file data: {data}")
 
         # Reset the timeout timer each time data is received
         if self.transfer_timeout_task:
@@ -118,12 +119,13 @@ class BLEFileTransferClient:
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
-                mac_prefixed_filename = f"{self.mac_address}_{filesize}__{filename}"
-                if needFile(mac_prefixed_filename):
+                if needFile(self.mac_address, filename, filesize):
                     print(f"Requesting file: {filename}")
-                    self.current_file_path = os.path.join(DATA_DIRECTORY, mac_prefixed_filename)
+                    mac_directory = os.path.join(self.base_directory, self.mac_address)
+                    os.makedirs(mac_directory, exist_ok=True)
+                    self.current_file_path = os.path.join(mac_directory, filename)
                     try:
-                        self.current_file = open(self.current_file_path, 'w')
+                        self.current_file = open(self.current_file_path, 'wb')
                     except IOError as e:
                         print(f"Failed to open file {filename} for writing: {e}")
                         continue
@@ -154,6 +156,8 @@ class BLEFileTransferClient:
 async def searchForLinks():
     mac_address = None
     ble_client = None
+    base_directory = os.path.join(DATA_DIRECTORY, datetime.now().strftime('%Y%m%d%H%M%S'))
+    os.makedirs(base_directory, exist_ok=True)
     try:
         devices = await BleakScanner.discover(timeout=3)
         if not devices:
@@ -163,7 +167,7 @@ async def searchForLinks():
             if "ESP32_BLE_SD" in device.name:
                 mac_address = device.address
                 print(f"Found ESP32: {device.name}, {mac_address}")
-                ble_client = BLEFileTransferClient(mac_address)
+                ble_client = BLEFileTransferClient(mac_address, base_directory)
                 async with BleakClient(device.address) as client:
                     print(f"Connected to {device.name}")
                     await ble_client.notification_manager(client)
