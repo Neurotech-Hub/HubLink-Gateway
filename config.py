@@ -40,3 +40,6 @@ USE_CLOUD = False
 DELETE_SCANS = True
 DELETE_SCANS_DAYS_OLD = -1 # set to -1 to skip
 DELETE_SCANS_PERCENT_REMAINING = -1 # set to -1 to skip
+
+# Device filter by name
+DEVICE_NAME_INCLUDES = "ESP32"

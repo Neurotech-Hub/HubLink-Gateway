@@ -1,15 +1,15 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile, upload_files
-from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD
+from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD, DEVICE_NAME_INCLUDES
 import os
 from datetime import datetime
 from DBManager import sortRecentMAC, updateMAC
 import time
 
-SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
-CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
-CHARACTERISTIC_UUID_FILETRANSFER = "87654321-4321-4321-4321-abcdefabcdf2"
+SERVICE_UUID = "57617368-5501-0001-8000-00805f9b34fb"
+CHARACTERISTIC_UUID_FILENAME = "57617368-5502-0001-8000-00805f9b34fb"
+CHARACTERISTIC_UUID_FILETRANSFER = "57617368-5503-0001-8000-00805f9b34fb"
 
 class BLEFileTransferClient:
     def __init__(self, mac_address, base_directory):
@@ -108,7 +108,6 @@ class BLEFileTransferClient:
         try:
             # Start notifications for both FILENAME and FILETRANSFER characteristics
             print("Requesting file list from ESP32...")
-            
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, self.handle_file_transfer)
             await client.start_notify(CHARACTERISTIC_UUID_FILENAME, self.handle_filename)
 
@@ -186,7 +185,7 @@ async def searchForLinks():
             return
         
         # Extract MAC addresses of ESP32 devices
-        mac_addresses = [device.address for device in devices if "ESP32_BLE_SD" in device.name]
+        mac_addresses = [device.address for device in devices if DEVICE_NAME_INCLUDES in device.name]
         # Sort MAC addresses by least recently updated
         sorted_mac_addresses = sortRecentMAC(mac_addresses)
         
