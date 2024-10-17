@@ -5,6 +5,7 @@ from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD
 import os
 from datetime import datetime
 from DBManager import sortRecentMAC, updateMAC
+import time
 
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 CHARACTERISTIC_UUID_FILENAME = "87654321-4321-4321-4321-abcdefabcdf3"
@@ -29,7 +30,7 @@ class BLEFileTransferClient:
             if self.current_file is not None:
                 self.current_file.close()
                 self.current_file = None
-                print("File transfer complete.")
+                #print("File transfer complete.")
             self.file_transfer_event.set()  # Signal that the file transfer is complete
 
             # Cancel the timeout task if the transfer is complete
@@ -120,7 +121,7 @@ class BLEFileTransferClient:
                     print(f"{filename} exceeds MAX_FILE_SIZE");
                     continue
                 if needFile(self.mac_address, filename, filesize):
-                    print(f"Requesting file: {filename}")
+                    print(f"Requesting {filename}")
                     mac_directory = os.path.join(self.base_directory, self.mac_address)
                     os.makedirs(mac_directory, exist_ok=True)
                     self.current_file_path = os.path.join(mac_directory, filename)
@@ -136,12 +137,19 @@ class BLEFileTransferClient:
                         print(f"Error during GATT write operation: {e}")
                         continue
 
+                    # Start measuring time for the file transfer
+                    start_time = time.time()
+
                     # Start the dynamic timeout for file transfer
                     self.file_transfer_timeout_task = asyncio.create_task(self.start_dynamic_filetransfer_timeout())
 
                     # Wait for the file transfer to complete
                     await self.file_transfer_event.wait()
                     self.file_transfer_event.clear()  # Clear event for next transfer
+
+                    # Calculate and print the elapsed time for the file transfer
+                    elapsed_time = time.time() - start_time
+                    print(f"{filename} ({filesize} bytes) took {elapsed_time:.2f} seconds.")
 
                     # Cancel any ongoing timeout task as EOF has been received
                     if self.file_transfer_timeout_task:
