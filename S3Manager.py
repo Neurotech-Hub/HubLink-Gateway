@@ -28,13 +28,13 @@ def format_datetime():
     else:
         raise ValueError("Invalid DT_RULE value")
 
-def build_s3_filename(mac, filename):
+def build_s3_filename(id, filename):
     """Builds the S3 filename string based on DT_RULE."""
     datetime_str = format_datetime()
     if datetime_str:
-        return f"{mac}/{datetime_str}/{filename}"
+        return f"{id}/{datetime_str}/{filename}"
     else:
-        return f"{mac}/{filename}"
+        return f"{id}/{filename}"
 
 def update_local_database():
     """Updates the local database to reflect what is in the S3 bucket."""
@@ -81,13 +81,13 @@ def update_local_database():
     conn.commit()
     conn.close()
 
-def needFile(mac, filename, size):
+def needFile(id, filename, size):
     """Checks if a file with the given filename and size is needed in the local cache."""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
 
     # Build the filename string
-    s3_filename = build_s3_filename(mac, filename)
+    s3_filename = build_s3_filename(id, filename)
 
     # Check if the file exists with the same size
     cursor.execute('SELECT filename, size FROM s3_files WHERE filename = ? AND size = ?', (s3_filename, size))
@@ -103,22 +103,22 @@ def upload_files(data_directory):
     cursor = conn.cursor()
 
     # Iterate through each MAC address folder
-    for mac in os.listdir(data_directory):
-        mac_path = os.path.join(data_directory, mac)
-        if not os.path.isdir(mac_path):
+    for id in os.listdir(data_directory):
+        id_path = os.path.join(data_directory, id)
+        if not os.path.isdir(id_path):
             continue
 
         # Iterate through each file in the MAC address folder
-        for filename in os.listdir(mac_path):
-            file_path = os.path.join(mac_path, filename)
+        for filename in os.listdir(id_path):
+            file_path = os.path.join(id_path, filename)
             if not os.path.isfile(file_path):
                 continue
 
             size = os.path.getsize(file_path)
 
-            if needFile(mac, filename, size):
+            if needFile(id, filename, size):
                 # Build the S3 key
-                s3_key = build_s3_filename(mac, filename)
+                s3_key = build_s3_filename(id, filename)
 
                 # Upload file to S3
                 s3.upload_file(file_path, BUCKET_NAME, s3_key)

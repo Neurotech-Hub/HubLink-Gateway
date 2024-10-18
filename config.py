@@ -43,3 +43,6 @@ DELETE_SCANS_PERCENT_REMAINING = -1 # set to -1 to skip
 
 # Device filter by name
 DEVICE_NAME_INCLUDES = "ESP32"
+
+# Override MAC with ID file
+ID_FILE_STARTS_WITH = "id_"

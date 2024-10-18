@@ -1,7 +1,7 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile, upload_files
-from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD, DEVICE_NAME_INCLUDES
+from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD, DEVICE_NAME_INCLUDES, ID_FILE_STARTS_WITH
 import os
 from datetime import datetime
 from DBManager import sortRecentMAC, updateMAC
@@ -114,16 +114,24 @@ class BLEFileTransferClient:
             # Wait for all filenames to be received
             await self.all_filenames_received.wait()  # Wait until all filenames have been received
 
+            # Determine the ID to use (either from ID file or MAC address)
+            id = self.mac_address
+            if ID_FILE_STARTS_WITH:
+                for filename, filesize in self.file_list:
+                    if filename.startswith(ID_FILE_STARTS_WITH):
+                        id = filename[len(ID_FILE_STARTS_WITH):].split('.')[0]
+                        break
+
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
                 if filesize > MAX_FILE_SIZE:
                     print(f"{filename} exceeds MAX_FILE_SIZE");
                     continue
-                if needFile(self.mac_address, filename, filesize):
+                if needFile(id, filename, filesize):
                     print(f"Requesting {filename}")
-                    mac_directory = os.path.join(self.base_directory, self.mac_address)
-                    os.makedirs(mac_directory, exist_ok=True)
-                    self.current_file_path = os.path.join(mac_directory, filename)
+                    id_directory = os.path.join(self.base_directory, id)
+                    os.makedirs(id_directory, exist_ok=True)
+                    self.current_file_path = os.path.join(id_directory, filename)
                     try:
                         self.current_file = open(self.current_file_path, 'wb')
                     except IOError as e:
@@ -134,7 +142,8 @@ class BLEFileTransferClient:
                         await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
                     except BleakError as e:
                         print(f"Error during GATT write operation: {e}")
-                        continue
+                        await self.disconnect_client(client)
+                        return
 
                     # Start measuring time for the file transfer
                     start_time = time.time()
@@ -159,10 +168,12 @@ class BLEFileTransferClient:
 
         except BleakError as e:
             print(f"Error during BLE interaction: {e}")
+            await self.disconnect_client(client)
         except asyncio.TimeoutError:
             print("File transfer timed out.")
         except Exception as e:
             print(f"Unexpected error: {e}")
+            await self.disconnect_client(client)
         finally:
             # Stop notifications and clean up if necessary
             try:
@@ -171,6 +182,13 @@ class BLEFileTransferClient:
             except BleakError as e:
                 print(f"Error stopping notifications: {e}")
             print("Notifications stopped and cleanup complete.")
+
+    async def disconnect_client(self, client):
+        try:
+            await client.disconnect()
+            print("Disconnected gracefully.")
+        except BleakError as e:
+            print(f"Error during disconnection: {e}")
 
 async def searchForLinks():
     mac_address = None
