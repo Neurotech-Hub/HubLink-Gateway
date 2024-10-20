@@ -1,4 +1,4 @@
-# NullLink-Pi
+# HubLink-Pi
 
 ## Peripheral Interaction Guidelines
 
