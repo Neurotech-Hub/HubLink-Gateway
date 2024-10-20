@@ -98,7 +98,7 @@ These configuration options make the system flexible, allowing easy adjustments 
 
 **Virtual Environment**
 1. Init: cd to project folder, `python3 -m venv myenv` 
-2. Start session: `source myenv/bin/activate`
+2. Start session: `source venv/bin/activate`
 3. (Opt) run your script, eg, `python3 S3.py`
 4. `deactivate`
 

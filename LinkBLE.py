@@ -1,15 +1,17 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 from S3Manager import needFile, upload_files
-from config import DATA_DIRECTORY, MAX_FILE_SIZE, USE_CLOUD, DEVICE_NAME_INCLUDES, ID_FILE_STARTS_WITH
+from config import DATA_DIRECTORY
 import os
 from datetime import datetime
-from DBManager import sortRecentMAC, updateMAC
+from DBManager import sortRecentMAC, updateMAC, get_settings
 import time
 
 SERVICE_UUID = "57617368-5501-0001-8000-00805f9b34fb"
 CHARACTERISTIC_UUID_FILENAME = "57617368-5502-0001-8000-00805f9b34fb"
 CHARACTERISTIC_UUID_FILETRANSFER = "57617368-5503-0001-8000-00805f9b34fb"
+
+settings = get_settings()
 
 class BLEFileTransferClient:
     def __init__(self, mac_address, base_directory):
@@ -116,16 +118,16 @@ class BLEFileTransferClient:
 
             # Determine the ID to use (either from ID file or MAC address)
             id = self.mac_address
-            if ID_FILE_STARTS_WITH:
+            if settings['id_file_starts_with']:
                 for filename, filesize in self.file_list:
-                    if filename.startswith(ID_FILE_STARTS_WITH):
-                        id = filename[len(ID_FILE_STARTS_WITH):].split('.')[0]
+                    if filename.startswith(settings['id_file_starts_with']):
+                        id = filename[len(settings['id_file_starts_with']):].split('.')[0]
                         break
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
-                if filesize > MAX_FILE_SIZE:
-                    print(f"{filename} exceeds MAX_FILE_SIZE");
+                if filesize > settings['max_file_size']:
+                    print(f"{filename} exceeds settings['max_file_size']");
                     continue
                 if needFile(id, filename, filesize):
                     print(f"Requesting {filename}")
@@ -203,7 +205,7 @@ async def searchForLinks():
             return
         
         # Extract MAC addresses of ESP32 devices
-        mac_addresses = [device.address for device in devices if DEVICE_NAME_INCLUDES in device.name]
+        mac_addresses = [device.address for device in devices if settings['device_name_includes'] in device.name]
         # Sort MAC addresses by least recently updated
         sorted_mac_addresses = sortRecentMAC(mac_addresses)
         
@@ -231,7 +233,7 @@ async def searchForLinks():
                 os.rmdir(base_directory)
         # Call upload_files if devices connected and files were transferred
         if devices_found and os.path.exists(base_directory):
-            if USE_CLOUD:
+            if settings['use_cloud']:
                 upload_files(base_directory)
             else:
                 print("Cloud storage is turned off.")

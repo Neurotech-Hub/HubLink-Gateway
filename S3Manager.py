@@ -2,28 +2,29 @@ import os
 import boto3
 import sqlite3
 from datetime import datetime
-from config import DATABASE_FILE, BUCKET_NAME, DT_RULE, DATETIME_FORMAT
-from DBManager import ensure_database_exists
+from config import DATABASE_FILE, DATETIME_FORMAT
+from DBManager import ensure_database_exists, get_settings
 
 # Set up your S3 client (assumes credentials are configured)
 s3 = boto3.client('s3')
+settings = get_settings()
 
 # Helper function to format datetime based on DT_RULE
 def format_datetime():
     now = datetime.now()
-    if DT_RULE == 'seconds':
+    if settings['dt_rule'] == 'seconds':
         return now.strftime('%Y%m%d%H%M%S')
-    elif DT_RULE == 'hours':
+    elif settings['dt_rule'] == 'hours':
         return now.strftime('%Y%m%d%H')
-    elif DT_RULE == 'days':
+    elif settings['dt_rule'] == 'days':
         return now.strftime('%Y%m%d')
-    elif DT_RULE == 'weeks':
+    elif settings['dt_rule'] == 'weeks':
         return now.strftime('%Y%U')
-    elif DT_RULE == 'months':
+    elif settings['dt_rule'] == 'months':
         return now.strftime('%Y%m')
-    elif DT_RULE == 'years':
+    elif settings['dt_rule'] == 'years':
         return now.strftime('%Y')
-    elif DT_RULE == 'never':
+    elif settings['dt_rule'] == 'never':
         return ''
     else:
         raise ValueError("Invalid DT_RULE value")
@@ -44,7 +45,7 @@ def update_local_database():
 
     # Get the list of files from S3
     try:
-        s3_files = s3.list_objects_v2(Bucket=BUCKET_NAME).get('Contents', [])
+        s3_files = s3.list_objects_v2(Bucket=settings['bucket_name']).get('Contents', [])
     except s3.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'AllAccessDisabled':
             print("Access to the S3 bucket is disabled. Please check permissions.")
@@ -121,7 +122,7 @@ def upload_files(data_directory):
                 s3_key = build_s3_filename(id, filename)
 
                 # Upload file to S3
-                s3.upload_file(file_path, BUCKET_NAME, s3_key)
+                s3.upload_file(file_path, settings['bucket_name'], s3_key)
                 print(f'Uploaded: {s3_key}')
 
                 # Update the database with the newly uploaded file

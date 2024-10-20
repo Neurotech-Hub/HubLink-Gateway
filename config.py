@@ -4,14 +4,17 @@
 # from config import DATA_DIRECTORY
 # from S3Manager import needFile
 
+SECRET_URL = "9612xJxgwx8q8at2NDIhqv4y"
+SECRET_DOMAIN = "https://hub-link.onrender.com/dashboard"
+
 # Base path for removable drive
-BASE_PATH = '/media/gaidica/NULL/NullLink'
+# BASE_PATH = '/media/gaidica/NULL/NullLink'
 
 # Data location (removable drive)
-DATA_DIRECTORY = f'{BASE_PATH}/data'
+DATA_DIRECTORY = 'data' #f'{BASE_PATH}/data'
 
 # Database file location
-DATABASE_FILE = f'{BASE_PATH}/s3_files.db'
+DATABASE_FILE = 'instance/hublink.db' #f'{BASE_PATH}/instance/hublink.db'
 
 # S3 bucket name
 BUCKET_NAME = 'neurotechhub-000'
@@ -28,6 +31,7 @@ DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
 # 'years'   - Uses format 'YYYY'
 # 'never'   - No datetime component, returns an empty string
 # Any other value will raise a ValueError.
+VALID_DT_RULES = ['seconds', 'hours', 'days', 'weeks', 'months', 'years', 'never']
 DT_RULE = 'days'
 
 # File size rule
