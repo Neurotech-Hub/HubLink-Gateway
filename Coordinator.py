@@ -16,4 +16,4 @@ if __name__ == "__main__":
     fetch_and_store_settings()
 
     # Call searchForLinks() to get new data
-    asyncio.run(searchForLinks()) # updates S3 files
+    asyncio.run(searchForLinks())

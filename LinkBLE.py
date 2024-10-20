@@ -205,7 +205,11 @@ async def searchForLinks():
             return
         
         # Extract MAC addresses of ESP32 devices
-        mac_addresses = [device.address for device in devices if settings['device_name_includes'] in device.name]
+        mac_addresses = [device.address for device in devices if device.name and settings['device_name_includes'] in device.name]
+        if not mac_addresses:
+            print("No devices found after name filter.")
+            return
+        
         # Sort MAC addresses by least recently updated
         sorted_mac_addresses = sortRecentMAC(mac_addresses)
         

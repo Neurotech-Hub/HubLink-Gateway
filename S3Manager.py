@@ -5,9 +5,15 @@ from datetime import datetime
 from config import DATABASE_FILE, DATETIME_FORMAT
 from DBManager import ensure_database_exists, get_settings
 
-# Set up your S3 client (assumes credentials are configured)
-s3 = boto3.client('s3')
 settings = get_settings()
+# Create a session using the provided access and secret keys
+session = boto3.Session(
+    aws_access_key_id=settings['aws_access_key_id'],
+    aws_secret_access_key=settings['aws_secret_access_key']
+)
+
+# Create an S3 client using the session
+s3 = session.client('s3')
 
 # Helper function to format datetime based on DT_RULE
 def format_datetime():

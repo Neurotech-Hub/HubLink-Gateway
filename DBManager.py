@@ -99,7 +99,7 @@ def fetch_and_store_settings():
     ensure_database_exists()
     url = f"{SECRET_DOMAIN}/{SECRET_URL}.json"
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=5)
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
