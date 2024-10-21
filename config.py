@@ -1,14 +1,7 @@
 # config.py
 
-###############################################################
-# USER CONFIGURATION SECTION                                  #
-# Only edit the following values:                             #
-###############################################################
-
-SECRET_URL = "9612xJxgwx8q8at2NDIhqv4y"
-SECRET_DOMAIN = "https://hub-link.onrender.com/dashboard"
-
-###############################################################
+# Hub Link API Endpoint
+HUBLINK_ENDPOINT = "https://hub-link.onrender.com/dashboard"
 
 # Data location (removable drive)
 DATA_DIRECTORY = 'data' #f'{BASE_PATH}/data'

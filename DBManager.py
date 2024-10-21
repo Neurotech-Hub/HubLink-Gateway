@@ -1,7 +1,8 @@
 import os
 import sqlite3
 import requests
-from config import DATABASE_FILE, DATETIME_FORMAT, SECRET_DOMAIN, SECRET_URL, VALID_DT_RULES
+from config import DATABASE_FILE, DATETIME_FORMAT, HUBLINK_ENDPOINT, VALID_DT_RULES
+from user import SECRET_URL
 from datetime import datetime
 
 def ensure_database_exists():
@@ -95,9 +96,9 @@ def sortRecentMAC(macAddressList):
     return not_in_db + sorted_existing_mac_addresses
 
 def fetch_and_store_settings():
-    """Fetches JSON data from the combined SECRET_DOMAIN and SECRET_URL and stores it in the settings table."""
+    """Fetches JSON data and stores it in the settings table."""
     ensure_database_exists()
-    url = f"{SECRET_DOMAIN}/{SECRET_URL}.json"
+    url = f"{HUBLINK_ENDPOINT}/{SECRET_URL}.json"
     try:
         response = requests.get(url, timeout=5)
         response.raise_for_status()

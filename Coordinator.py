@@ -1,7 +1,6 @@
 from LinkBLE import searchForLinks
 from S3Manager import update_local_database
 from DBManager import fetch_and_store_settings
-from config import DATA_DIRECTORY  # Import the variables from config
 import asyncio
 
 # cronjob
