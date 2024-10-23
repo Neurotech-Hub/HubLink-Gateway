@@ -1,13 +1,16 @@
-# config.py
+import os
 
 # Hub Link API Endpoint
 HUBLINK_ENDPOINT = "https://hublink.cloud"
 
 # Data location (removable drive)
-DATA_DIRECTORY = 'data' #f'{BASE_PATH}/data'
+DATA_DIRECTORY = '/media/gaidica/HUBLINK/data'
 
-# Database file location
-DATABASE_FILE = 'instance/hublink.db' #f'{BASE_PATH}/instance/hublink.db'
+# Get the directory where this script is located
+base_directory = os.path.abspath(os.path.dirname(__file__))
+
+# Set the database file path relative to this directory
+DATABASE_FILE = os.path.join(base_directory, 'instance', 'hublink.db')
 
 # Standardized datetime format
 DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S'

@@ -91,7 +91,9 @@ These configuration options make the system flexible, allowing easy adjustments 
 ---
 
 ## Dependencies
-pip install -r requirements.txt
+You either need `SECRET_URL` as an env variable or to touch .env and: `SECRET_URL=...`
+
+`pip install -r requirements.txt`
 
 ...
 

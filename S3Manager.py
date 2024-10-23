@@ -3,7 +3,7 @@ import boto3
 import sqlite3
 from datetime import datetime
 from config import DATABASE_FILE, DATETIME_FORMAT
-from DBManager import ensure_database_exists, get_settings
+from DBManager import get_settings
 
 # Helper function to format datetime based on DT_RULE
 def format_datetime():

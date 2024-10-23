@@ -12,8 +12,6 @@ SERVICE_UUID = "57617368-5501-0001-8000-00805f9b34fb"
 CHARACTERISTIC_UUID_FILENAME = "57617368-5502-0001-8000-00805f9b34fb"
 CHARACTERISTIC_UUID_FILETRANSFER = "57617368-5503-0001-8000-00805f9b34fb"
 
-settings = get_settings()
-
 class BLEFileTransferClient:
     def __init__(self, mac_address, base_directory):
         self.file_list = []
@@ -125,6 +123,7 @@ class BLEFileTransferClient:
 
             # Determine the ID to use (either from ID file or MAC address)
             id = self.mac_address
+            settings = get_settings()
             if settings['id_file_starts_with']:
                 for filename, filesize in self.file_list:
                     if filename.startswith(settings['id_file_starts_with']):
@@ -209,6 +208,7 @@ class BLEFileTransferClient:
             print(f"Error during disconnection: {e}")
 
 async def searchForLinks():
+    settings = get_settings()
     mac_address = None
     ble_client = None
     base_directory = os.path.join(DATA_DIRECTORY, datetime.now().strftime('%Y%m%d%H%M%S'))
