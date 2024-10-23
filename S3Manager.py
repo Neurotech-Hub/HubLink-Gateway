@@ -88,18 +88,18 @@ def update_local_database():
     conn.commit()
     conn.close()
 
-def needFile(id, filename, size):
-    """Checks if a file with the given filename and size is needed in the local cache."""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
+# def needFile(id, filename, size):
+#     """Checks if a file with the given filename and size is needed in the local cache."""
+#     conn = sqlite3.connect(DATABASE_FILE)
+#     cursor = conn.cursor()
 
-    # Build the filename string
-    s3_filename = build_s3_filename(id, filename)
+#     # Build the filename string
+#     s3_filename = build_s3_filename(id, filename)
 
-    # Check if the file exists with the same size
-    cursor.execute('SELECT filename, size FROM s3_files WHERE filename = ? AND size = ?', (s3_filename, size))
-    result = cursor.fetchone()
-    conn.close()
+#     # Check if the file exists with the same size
+#     cursor.execute('SELECT filename, size FROM s3_files WHERE filename = ? AND size = ?', (s3_filename, size))
+#     result = cursor.fetchone()
+#     conn.close()
 
     # If no exact match is found, return True
     return result is None

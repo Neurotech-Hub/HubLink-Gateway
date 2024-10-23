@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from DBManager import sortRecentMAC, updateMAC, get_settings
 import time
+from APIManager import filter_needed_files
 
 SERVICE_UUID = "57617368-5501-0001-8000-00805f9b34fb"
 CHARACTERISTIC_UUID_FILENAME = "57617368-5502-0001-8000-00805f9b34fb"
@@ -123,50 +124,48 @@ class BLEFileTransferClient:
                     if filename.startswith(settings['id_file_starts_with']):
                         id = filename[len(settings['id_file_starts_with']):].split('.')[0]
                         break
+            # Filter the list of files that are needed using the Hublink API endpoint
+            self.file_list = filter_needed_files(id, self.file_list, settings['max_file_size'])
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
-                if filesize > settings['max_file_size']:
-                    print(f"{filename} exceeds settings['max_file_size']");
+                print(f"Requesting {filename}")
+                id_directory = os.path.join(self.base_directory, id)
+                os.makedirs(id_directory, exist_ok=True)
+                self.current_file_path = os.path.join(id_directory, filename)
+                try:
+                    self.current_file = open(self.current_file_path, 'wb')
+                except IOError as e:
+                    print(f"Failed to open file {filename} for writing: {e}")
                     continue
-                if needFile(id, filename, filesize):
-                    print(f"Requesting {filename}")
-                    id_directory = os.path.join(self.base_directory, id)
-                    os.makedirs(id_directory, exist_ok=True)
-                    self.current_file_path = os.path.join(id_directory, filename)
-                    try:
-                        self.current_file = open(self.current_file_path, 'wb')
-                    except IOError as e:
-                        print(f"Failed to open file {filename} for writing: {e}")
-                        continue
 
-                    try:
-                        await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
-                    except BleakError as e:
-                        print(f"Error during GATT write operation: {e}")
-                        await self.disconnect_client(client)
-                        return
+                try:
+                    await client.write_gatt_char(CHARACTERISTIC_UUID_FILENAME, filename.encode('utf-8'))  # Send filename without MAC address
+                except BleakError as e:
+                    print(f"Error during GATT write operation: {e}")
+                    await self.disconnect_client(client)
+                    return
 
-                    # Start measuring time for the file transfer
-                    start_time = time.time()
+                # Start measuring time for the file transfer
+                start_time = time.time()
 
-                    # Start the dynamic timeout for file transfer
-                    self.file_transfer_timeout_task = asyncio.create_task(self.start_dynamic_filetransfer_timeout())
+                # Start the dynamic timeout for file transfer
+                self.file_transfer_timeout_task = asyncio.create_task(self.start_dynamic_filetransfer_timeout())
 
-                    # Wait for the file transfer to complete
-                    await self.file_transfer_event.wait()
-                    self.file_transfer_event.clear()  # Clear event for next transfer
+                # Wait for the file transfer to complete
+                await self.file_transfer_event.wait()
+                self.file_transfer_event.clear()  # Clear event for next transfer
 
-                    # Calculate and print the elapsed time for the file transfer
-                    elapsed_time = time.time() - start_time
-                    print(f"{filename} ({filesize} bytes) took {elapsed_time:.2f} seconds.")
+                # Calculate and print the elapsed time for the file transfer
+                elapsed_time = time.time() - start_time
+                print(f"{filename} ({filesize} bytes) took {elapsed_time:.2f} seconds.")
 
-                    # Cancel any ongoing timeout task as EOF has been received
-                    if self.file_transfer_timeout_task:
-                        self.file_transfer_timeout_task.cancel()
+                # Cancel any ongoing timeout task as EOF has been received
+                if self.file_transfer_timeout_task:
+                    self.file_transfer_timeout_task.cancel()
 
-                    # Reset EOF flag for the next file
-                    self.eof_received = False
+                # Reset EOF flag for the next file
+                self.eof_received = False
 
         except BleakError as e:
             print(f"Error during BLE interaction: {e}")

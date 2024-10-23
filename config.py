@@ -1,7 +1,7 @@
 # config.py
 
 # Hub Link API Endpoint
-HUBLINK_ENDPOINT = "https://hub-link.onrender.com/dashboard"
+HUBLINK_ENDPOINT = "https://hublink.cloud"
 
 # Data location (removable drive)
 DATA_DIRECTORY = 'data' #f'{BASE_PATH}/data'
