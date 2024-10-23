@@ -91,13 +91,16 @@ These configuration options make the system flexible, allowing easy adjustments 
 ---
 
 ## Dependencies
-- `sudo apt-get install curl`
+pip install -r requirements.txt
+
+...
+
 - `pip install bleak`
 
 ### Setup
 
 **Virtual Environment**
-1. Init: cd to project folder, `python3 -m venv myenv` 
+1. Init: cd to project folder, `python3 -m venv venv` 
 2. Start session: `source venv/bin/activate`
 3. (Opt) run your script, eg, `python3 S3.py`
 4. `deactivate`
@@ -110,7 +113,7 @@ These configuration options make the system flexible, allowing easy adjustments 
 1. Init: `pip install boto3` (this will persist in myenv)
 
 **Running myenv in VS Code**
-1. Ctrl + Shift + P; Python: Select Interpreter (select myenv)
+1. Ctrl + Shift + P; Python: Select Interpreter (select venv)
 
 **SQLite Browser**
 1. `sudo apt update`

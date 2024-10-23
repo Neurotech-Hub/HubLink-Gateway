@@ -2,8 +2,13 @@ import os
 import sqlite3
 import requests
 from config import DATABASE_FILE, DATETIME_FORMAT, HUBLINK_ENDPOINT, VALID_DT_RULES
-from user import SECRET_URL
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file if it exists
+load_dotenv()
+
+SECRET_URL = os.getenv('SECRET_URL')
 
 def ensure_database_exists():
     """Ensures that the necessary tables exist in the database."""
@@ -103,6 +108,7 @@ def fetch_and_store_settings():
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         data = response.json()
+        print("API fetch successful.")
     except requests.RequestException as e:
         print(f"Error fetching data from {url}: {e}")
         return

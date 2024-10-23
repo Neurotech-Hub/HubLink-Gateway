@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
-from S3Manager import needFile, upload_files
+from S3Manager import upload_files
 from config import DATA_DIRECTORY
 import os
 from datetime import datetime
@@ -109,6 +109,12 @@ class BLEFileTransferClient:
         self.all_filenames_received.clear()
 
         try:
+            # Ensure the client is connected
+            if not client.is_connected:
+                print("Client is not connected. Retrying...")
+                await self.disconnect_client(client)
+                return
+
             # Start notifications for both FILENAME and FILETRANSFER characteristics
             print("Requesting file list from ESP32...")
             await client.start_notify(CHARACTERISTIC_UUID_FILETRANSFER, self.handle_file_transfer)
@@ -124,8 +130,19 @@ class BLEFileTransferClient:
                     if filename.startswith(settings['id_file_starts_with']):
                         id = filename[len(settings['id_file_starts_with']):].split('.')[0]
                         break
+            filtered_list = filter_needed_files(id, self.file_list, settings['max_file_size'])
             # Filter the list of files that are needed using the Hublink API endpoint
-            self.file_list = filter_needed_files(id, self.file_list, settings['max_file_size'])
+            # if self.file_list:
+            #     try:
+            #         filtered_list = filter_needed_files(id, self.file_list, settings['max_file_size'])
+            #         if filtered_list is None:
+            #             raise TypeError("filter_needed_files returned None")
+            #         self.file_list = filtered_list
+            #     except TypeError as e:
+            #         print(f"Error filtering needed files: {e}")
+            #         self.file_list = []
+            # else:
+            #     print("No files received for processing.")
 
             # After receiving filenames, request only those that are needed
             for filename, filesize in self.file_list:
@@ -218,6 +235,10 @@ async def searchForLinks():
             try:
                 async with BleakClient(mac_address) as client:
                     print(f"Connected to {mac_address}")
+                    # Ensure the client is connected
+                    if not client.is_connected:
+                        print("Client is not connected after connection attempt. Skipping...")
+                        continue
                     await ble_client.notification_manager(client)
                     updateMAC(mac_address)  # Update MAC address after successful connection
                     devices_found = True
